@@ -10,9 +10,10 @@ import {
     Dimensions,
     StyleSheet,
     View,
+    Linking,
     WebView
 } from 'react-native';
-
+import url from 'url';
 import ImmutableComponent from 'react-immutable-component';
 
 export default class AutoHeightWebView extends ImmutableComponent {
@@ -87,16 +88,42 @@ export default class AutoHeightWebView extends ImmutableComponent {
         return (
             <Animated.View style={[Styles.container, {
                 opacity: enableAnimation ? this.opacityAnimatedValue : 1,
-                height: height + heightOffset,
+                height: height + heightOffset + 5,
             }, style]}>
                 <WebView
+                    ref={(ref) => this.webview = ref}
                     style={Styles.webView}
                     injectedJavaScript={script + customScript}
                     scrollEnabled={false}
                     source={webViewSource}
-                    onNavigationStateChange={this.handleNavigationStateChange} />
+                    onNavigationStateChange={this.handleNavigationStateChange}
+                    onLoadStart={this.OnLoadWebview.bind(this)}/>
             </Animated.View>
         );
+    }
+
+    shouldLoadUrl(urlString) {
+        const parsedURL = url.parse(urlString);
+        switch (parsedURL.protocol) {
+            case 'https:':
+            case 'http:':
+                return false;
+            default:
+                return true;
+        }
+    }
+
+    OnLoadWebview(event) {
+        let nativeEvent = { ...event.nativeEvent };
+        if (this.shouldLoadUrl(nativeEvent.url))
+            return;
+
+        this.webview.stopLoading();
+        let openLinkPromise = Linking.canOpenURL(nativeEvent.url).then(supported => {
+            if (!supported)
+                return Promise.reject({ msg: 'cannot open url' });
+            return Linking.openURL(nativeEvent.url);
+        }).catch(() => { });
     }
 }
 
